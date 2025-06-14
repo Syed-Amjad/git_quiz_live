@@ -53,7 +53,7 @@ def generate_questions(client):
                     "content": "Create 20 multiple-choice questions with 4 options each about Git (introduction, add, commit, stash, branch, merge, push, pull, pull requests) and identify the correct answer for each."
                 }
             ],
-        mistral-saba-24b
+       model='llama3-70b-versatile'
 
         )
         response = chat_completion.choices[0].message.content
