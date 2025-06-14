@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 import sqlite3
-from groq import Groq
+import google.generativeai as genai
 
 # ------------------------------------------------------------------------------
 # Database setup
@@ -58,17 +58,16 @@ def main():
 
     st.write(f"Hello, {student_name}! Let's start the quiz.")
 
-    # Initialize Groq client
-    try:
-        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    # Configure Gemini API
+    gemini_api_key = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=gemini_api_key)
 
-        chat_completion = client.chat.completions.create(
-            messages=[
-                {"role": "user", "content": "Create 20 multiple-choice questions about Git with 4 options each and indicate the correct answer in your response"}
-            ],
-            model='mixtral-8x7b'  # or whatever supported by your API
+    try:
+        model = genai.GenerativeModel("gemini-pro")  # or "gemini-1.5-pro" if you have access
+        response = model.generate_content(
+            "Create 20 multiple-choice questions about Git with 4 options each and indicate the correct answer in your response."
         )
-        generated_questions = chat_completion.choices[0].message.content
+        generated_questions = response.text
 
     except Exception as e:
         st.error(f"Error generating questions: {str(e)}")
@@ -77,13 +76,12 @@ def main():
     st.success("Questions generated! Please answer them below:")
 
     # Parsing the generated questions
-    # This is a simplified parsing — you may need to adjust this depending on the format of the API response
     lines = generated_questions.splitlines()
     questions = []
     temp = {"question": "", "options": [], "answer": ""}
     for line in lines:
         line = line.strip()
-        if line.startswith("Question"):
+        if line.startswith("Question") or line.startswith("Q."):
             if temp["question"]:
                 questions.append(temp.copy())  # Store previous
                 temp = {"question": "", "options": [], "answer": ""}
