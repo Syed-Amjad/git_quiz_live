@@ -1,8 +1,9 @@
 import os
 import streamlit as st
 import sqlite3
-import json
 import re
+import json
+
 import google.generativeai as genai
 
 # ------------------------------------------------------------------------------
@@ -59,76 +60,58 @@ def main():
         return
 
     st.write(f"Hello, {student_name}! Let's start the quiz.")
+    score = 0
 
-    if st.button("Start Quiz with Gemini Flash"):
+    # Generate questions with Gemini
+    if st.button("Generate Quiz with Gemini Flash"):
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
         try:
-            # Configure Gemini API
-            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+            response = genai.GenerativeModel("gemini-2.0-flash").generate_content(
+                "Create a multiple-choice quiz with 20 questions about Git fundamentals. Provide in format: [ {question, options, correct index} ] in pure JSON array format."
+            )
+            raw_response = response.text
 
-            # Generate questions
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content(
-                """Create 20 multiple-choice questions about Git (Introduction, add, commit, stash, branch, merge, push, pull, pull requests).
-Provide 4 options for each and indicate the correct answer by its index (starting from 0).
-Respond with a pure JSON array with this structure:
-
-[
-  {
-    "question": "...",
-    "options": [
-      "Option 1",
-      "Option 2",
-      "Option 3",
-      "Option 4"
-    ],
-    "correct": 0
-  },
-  ...
-]
-""")
-
-
-            raw_response = response.text.strip()
-            st.write("Raw response from Gemini:")
-            st.code(raw_response, language='json')
-
-            # Extract the pure JSON array from the raw response
             match = re.search(r'(\[.*\])', raw_response, re.MULTILINE | re.DOTALL)
             if match:
                 raw_json = match.group(1)
+                questions = json.loads(raw_json)
+                st.success("Questions parsed successfully! Please answer them below:")
+
+                # Store answers in a form
+                user_answers = {}
+                with st.form("quiz_form"):
+                    for idx, q in enumerate(questions, 1):
+                        st.write(f"Question {idx}. {q['question']}")
+
+                        answer = st.radio(
+                            label=f"Select your answer for Question {idx}",
+                            options=q['options'], 
+                            key=f"q{idx}",
+                        )
+                        user_answers[idx] = answer
+
+                    submit = st.form_submit_button("Submit Quiz")
+
+                if submit:
+                    for idx, q in enumerate(questions, 1):
+                        correct_option = q['options'][q['correct']]
+                        if user_answers[idx] == correct_option:
+                            score += 1
+
+                    st.success(f"Your score is {score}/{len(questions)}")
+
+                    if st.button("Save Score to Database"):
+                        save_score(student_name, score)
+                        st.success("Your score has been successfully saved!")
+
+                    if st.button("View All Scores (Admin)"):
+                        scores = view_scores()
+                        st.table(scores)
             else:
-                raise ValueError("JSON array not found in Gemini response")
-
-            questions = json.loads(raw_json)
-            st.success("Questions parsed successfully! Please answer them below:")
-
-            score = 0
-
-            for idx, q in enumerate(questions, 1):
-                st.write(f"Question {idx}. {q['question']}")
-
-                answer = st.radio(
-                    label=f"Select your answer for Question {idx}",
-                    options=q['options'], 
-                    key=f"q{idx}",
-                )
-
-                if answer == q['options'][q['correct']]:
-                    score += 1
-
-            st.success(f"Your score is {score}/{len(questions)}")
-
-            if st.button("Save Score to Database"):
-                save_score(student_name, score)
-                st.success("Your score has been successfully saved!")
-
-            if st.button("View All Scores (Admin)"):
-                scores = view_scores()
-                st.table(scores)
-
+                st.error("JSON array not found in Gemini response.")
         except Exception as e:
-            st.error(f"Error generating questions: {str(e)}")
+            st.error(f"Error generating questions: {e}")
 
 if __name__ == "__main__":
     main()
