@@ -47,16 +47,12 @@ def generate_questions(client):
     """Generates a set of Git questions using Groq API."""
     try:
         chat_completion = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": "Create 20 multiple-choice questions with 4 options each about Git (introduction, add, commit, stash, branch, merge, push, pull, pull requests) and identify the correct answer for each."
-                }
-            ],
-      model='mixtral-8x7b'
-
-        )
-        response = chat_completion.choices[0].message.content
+    messages=[
+        {"role": "user", "content": "Create 20 multiple-choice questions about Git"}
+    ],
+    model='llama3-8b-versatile'
+)
+generated_questions = chat_completion.choices[0].message.content
 
         # Split questions by number
         question_blocks = re.split(r'\n[0-9]+\.\s', response)
