@@ -1,10 +1,8 @@
 import os
 import streamlit as st
 import sqlite3
-import re
-import json
-
 import google.generativeai as genai
+import json
 
 # ------------------------------------------------------------------------------
 # Database setup
@@ -62,56 +60,48 @@ def main():
     st.write(f"Hello, {student_name}! Let's start the quiz.")
     score = 0
 
-    # Generate questions with Gemini
     if st.button("Generate Quiz with Gemini Flash"):
-        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
         try:
+            # Configure Gemini
+            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+
+            # Generate questions
             response = genai.GenerativeModel("gemini-2.0-flash").generate_content(
-                "Create a multiple-choice quiz with 20 questions about Git fundamentals. Provide in format: [ {question, options, correct index} ] in pure JSON array format."
+                """Create 20 multiple-choice questions about Git fundamentals. 
+                Provide them in a pure JSON array format with each object having:
+                - question
+                - options (array of 4)
+                - correct (integer, 0-based index of correct answer).
+                """
             )
-            raw_response = response.text
 
-            match = re.search(r'(\[.*\])', raw_response, re.MULTILINE | re.DOTALL)
-            if match:
-                raw_json = match.group(1)
-                questions = json.loads(raw_json)
-                st.success("Questions parsed successfully! Please answer them below:")
+            raw_json = response.text.strip()
+            st.write("Questions generated! Please answer them below:")
 
-                # Store answers in a form
-                user_answers = {}
-                with st.form("quiz_form"):
-                    for idx, q in enumerate(questions, 1):
-                        st.write(f"Question {idx}. {q['question']}")
+            questions = json.loads(raw_json)
 
-                        answer = st.radio(
-                            label=f"Select your answer for Question {idx}",
-                            options=q['options'], 
-                            key=f"q{idx}",
-                        )
-                        user_answers[idx] = answer
+            for idx, q in enumerate(questions, 1):
+                st.write(f"Question {idx}. {q['question']}")
 
-                    submit = st.form_submit_button("Submit Quiz")
+                answer = st.radio("Select your answer", q['options'], key=idx)
 
-                if submit:
-                    for idx, q in enumerate(questions, 1):
-                        correct_option = q['options'][q['correct']]
-                        if user_answers[idx] == correct_option:
-                            score += 1
+                if answer == q['options'][q['correct']]:
+                    score += 1
 
-                    st.success(f"Your score is {score}/{len(questions)}")
+            st.success(f"Your score is {score}/{len(questions)}")
 
-                    if st.button("Save Score to Database"):
-                        save_score(student_name, score)
-                        st.success("Your score has been successfully saved!")
+            if st.button("Save Score to Database"):
+                save_score(student_name, score)
+                st.success("Your score has been successfully saved!")
 
-                    if st.button("View All Scores (Admin)"):
-                        scores = view_scores()
-                        st.table(scores)
-            else:
-                st.error("JSON array not found in Gemini response.")
         except Exception as e:
             st.error(f"Error generating questions: {e}")
+
+    if st.button("View All Scores (Admin)"):
+        scores = view_scores()
+        st.table(scores)
+
 
 if __name__ == "__main__":
     main()
