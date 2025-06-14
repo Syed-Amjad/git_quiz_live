@@ -1,9 +1,6 @@
-import os
 import streamlit as st
+import os
 import sqlite3
-import re
-
-# Groq API
 from groq import Groq
 
 # ------------------------------------------------------------------------------
@@ -41,46 +38,6 @@ def view_scores():
 
 
 # ------------------------------------------------------------------------------
-# Groq Quiz Question Generation
-# ------------------------------------------------------------------------------
-def generate_questions(client):
-    """Generates a set of Git questions using Groq API."""
-    try:
-        chat_completion = client.chat.completions.create(
-    messages=[
-        {"role": "user", "content": "Create 20 multiple-choice questions about Git"}
-    ],
-    model='llama3-8b-versatile'
-)
-generated_questions = chat_completion.choices[0].message.content
-
-        # Split questions by number
-        question_blocks = re.split(r'\n[0-9]+\.\s', response)
-        questions = []
-
-        for block in question_blocks[1:]:
-            lines = block.strip().splitlines()
-            question = lines[0].strip()
-            options = []
-            answer = ""
-
-            for line in lines[1:]:
-                if re.match(r'[a-d]\)', line):
-                    options.append(line[3:].strip())  # Strip "a) " etc.
-                elif line.startswith("Answer:") or line.startswith("Correct Answer:"):
-                    answer = line.split(':')[1].strip()
-
-            if question and options and answer:
-                questions.append({"question": question, "options": options, "answer": answer})
-
-        return questions
-
-    except Exception as e:
-        st.error(f"Error generating questions: {e}")
-        return []
-
-
-# ------------------------------------------------------------------------------
 # Streamlit App
 # ------------------------------------------------------------------------------
 def main():
@@ -92,14 +49,6 @@ def main():
     # Initialize db
     init_db()
 
-    # API key
-    if "GROQ_API_KEY" not in st.secrets:
-        st.error("Groq API key not configured in Streamlit secrets.")
-        st.stop()
-
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-    client = Groq(api_key=GROQ_API_KEY)
-
     # Student enters their name first
     student_name = st.text_input("Enter your name:")
 
@@ -109,35 +58,58 @@ def main():
 
     st.write(f"Hello, {student_name}! Let's start the quiz.")
 
-    if st.button("Start Quiz with AI-generated questions"):
-        questions = generate_questions(client)
-        if questions:
-            st.session_state['questions'] = questions
-        else:
-            st.error("Unable to generate questions. Please try again later.")
-            return
+    # Initialize Groq client
+    try:
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-    if 'questions' in st.session_state:
-        questions = st.session_state['questions']
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {"role": "user", "content": "Create 20 multiple-choice questions about Git with 4 options each and indicate the correct answer in your response"}
+            ],
+            model='mixtral-8x7b'  # or whatever supported by your API
+        )
+        generated_questions = chat_completion.choices[0].message.content
 
-        score = 0
+    except Exception as e:
+        st.error(f"Error generating questions: {str(e)}")
+        return
 
-        answers = []
+    st.success("Questions generated! Please answer them below:")
 
-        for idx, q in enumerate(questions, 1):
-            st.write(f"Question {idx}. {q['question']}")
+    # Parsing the generated questions
+    # This is a simplified parsing — you may need to adjust this depending on the format of the API response
+    lines = generated_questions.splitlines()
+    questions = []
+    temp = {"question": "", "options": [], "answer": ""}
+    for line in lines:
+        line = line.strip()
+        if line.startswith("Question"):
+            if temp["question"]:
+                questions.append(temp.copy())  # Store previous
+                temp = {"question": "", "options": [], "answer": ""}
+            temp["question"] = line
+        elif line.startswith("A.") or line.startswith("B.") or line.startswith("C.") or line.startswith("D."):
+            temp["options"].append(line)
+        elif line.startswith("Answer:"):
+            temp["answer"] = line.split("Answer:")[-1].strip()
+    if temp["question"]:
+        questions.append(temp.copy())  # Store last one
 
-            answer = st.radio("Select your answer", q['options'], key=str(idx))
-            answers.append(answer)
+    score = 0
 
-            if answer == q['answer']:
-                score += 1
+    for idx, q in enumerate(questions, 1):
+        st.write(f"Question {idx}. {q['question']}")
 
-        st.success(f"Your score is {score}/{len(questions)}")
+        answer = st.radio("Select your answer", q['options'], key=idx)
 
-        if st.button("Save Score to Database"):
-            save_score(student_name, score)
-            st.success("Your score has been successfully saved!")
+        if answer == q['answer']:
+            score += 1
+
+    st.success(f"Your score is {score}/{len(questions)}")
+
+    if st.button("Save Score to Database"):
+        save_score(student_name, score)
+        st.success("Your score has been successfully saved!")
 
     if st.button("View All Scores (Admin)"):
         scores = view_scores()
