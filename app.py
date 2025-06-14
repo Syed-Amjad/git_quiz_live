@@ -1,8 +1,8 @@
 import os
 import streamlit as st
 import sqlite3
-import google.generativeai as genai
 import json
+import google.generativeai as genai
 
 # ------------------------------------------------------------------------------
 # Database setup
@@ -61,17 +61,39 @@ def main():
 
     if st.button("Start Quiz with Gemini Flash"):
 
-        # Configure Gemini
-        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
         try:
+            # Configure Gemini API
+            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+
             # Generate questions
             response = genai.GenerativeModel("gemini-1.5-flash").generate_content(
-                "Create 20 multiple-choice questions about Git (Introduction, add, commit, stash, branch, merge, push, pull, pull requests). Provide 4 options and indicate the correct answer. Format your response in a valid JSON array where each object includes 'question', 'options' (array), and 'correct' (integer index starting from 0)."
-            )
+                """Create 20 multiple-choice questions about Git (Introduction, add, commit, stash, branch, merge, push, pull, pull requests).
+Provide 4 options for each and indicate the correct answer by its index (starting from 0).
+Respond with a pure JSON array with this structure:
 
-            questions = json.loads(response.text)
-            st.success("Questions generated! Please answer them below:")
+[
+  {
+    "question": "...",
+    "options": [
+      "Option 1",
+      "Option 2",
+      "Option 3",
+      "Option 4"
+    ],
+    "correct": 0
+  },
+  ...
+]
+""")
+
+
+            raw_response = response.text.strip()
+            st.write("Raw response from Gemini:")
+            st.code(raw_response, language='json')
+
+            # Now parse the raw response safely
+            questions = json.loads(raw_response)
+            st.success("Questions parsed successfully! Please answer them below:")
 
             score = 0
 
