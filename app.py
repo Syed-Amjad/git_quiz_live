@@ -49,16 +49,16 @@ def view_scores():
 def generate_questions():
     """Generates a set of Git questions using Groq API."""
     try:
-        chat_completion = client.chat_completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": "Create 20 multiple-choice questions with 4 options each about Git (introduction, add, commit, stash, branch, merge, push, pull, pull requests) and identify the correct answer for each."
-                }
-            ],
-            model='llama-3.3-70b-versatile'
-        )
-        response = chat_completion.choices[0].message.content
+       chat_completion = client.chat.completions.create(
+    messages=[
+        {
+            "role": "user",
+            "content": "Create 20 multiple-choice questions with 4 options each about Git …"
+        }
+    ],
+    model='llama3-8b-chat'
+)
+
 
         # Here we need to extract questions, options, and answers
         import re
