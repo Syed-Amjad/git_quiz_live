@@ -63,7 +63,7 @@ def main():
     genai.configure(api_key=gemini_api_key)
 
     try:
-        model = genai.GenerativeModel("gemini-pro")  # or "gemini-1.5-pro" if you have access
+        model = genai.GenerativeModel("gemini-2.0-flash")  # or "gemini-1.5-pro" if you have access
         response = model.generate_content(
             "Create 20 multiple-choice questions about Git with 4 options each and indicate the correct answer in your response."
         )
