@@ -67,7 +67,8 @@ def main():
             genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
             # Generate questions
-            response = genai.GenerativeModel("gemini-1.5-flash").generate_content(
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            response = model.generate_content(
                 """Create 20 multiple-choice questions about Git (Introduction, add, commit, stash, branch, merge, push, pull, pull requests).
 Provide 4 options for each and indicate the correct answer by its index (starting from 0).
 Respond with a pure JSON array with this structure:
