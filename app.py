@@ -1,7 +1,8 @@
-import streamlit as st
 import os
+import streamlit as st
 import sqlite3
 import google.generativeai as genai
+import json
 
 # ------------------------------------------------------------------------------
 # Database setup
@@ -58,61 +59,46 @@ def main():
 
     st.write(f"Hello, {student_name}! Let's start the quiz.")
 
-    # Configure Gemini API
-    gemini_api_key = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=gemini_api_key)
+    if st.button("Start Quiz with Gemini Flash"):
 
-    try:
-        model = genai.GenerativeModel("gemini-2.0-flash")  # or "gemini-1.5-pro" if you have access
-        response = model.generate_content(
-            "Create 20 multiple-choice questions about Git with 4 options each and indicate the correct answer in your response."
-        )
-        generated_questions = response.text
+        # Configure Gemini
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-    except Exception as e:
-        st.error(f"Error generating questions: {str(e)}")
-        return
+        try:
+            # Generate questions
+            response = genai.GenerativeModel("gemini-1.5-flash").generate_content(
+                "Create 20 multiple-choice questions about Git (Introduction, add, commit, stash, branch, merge, push, pull, pull requests). Provide 4 options and indicate the correct answer. Format your response in a valid JSON array where each object includes 'question', 'options' (array), and 'correct' (integer index starting from 0)."
+            )
 
-    st.success("Questions generated! Please answer them below:")
+            questions = json.loads(response.text)
+            st.success("Questions generated! Please answer them below:")
 
-    # Parsing the generated questions
-    lines = generated_questions.splitlines()
-    questions = []
-    temp = {"question": "", "options": [], "answer": ""}
-    for line in lines:
-        line = line.strip()
-        if line.startswith("Question") or line.startswith("Q."):
-            if temp["question"]:
-                questions.append(temp.copy())  # Store previous
-                temp = {"question": "", "options": [], "answer": ""}
-            temp["question"] = line
-        elif line.startswith("A.") or line.startswith("B.") or line.startswith("C.") or line.startswith("D."):
-            temp["options"].append(line)
-        elif line.startswith("Answer:"):
-            temp["answer"] = line.split("Answer:")[-1].strip()
-    if temp["question"]:
-        questions.append(temp.copy())  # Store last one
+            score = 0
 
-    score = 0
+            for idx, q in enumerate(questions, 1):
+                st.write(f"Question {idx}. {q['question']}")
 
-    for idx, q in enumerate(questions, 1):
-        st.write(f"Question {idx}. {q['question']}")
+                answer = st.radio(
+                    label=f"Select your answer for Question {idx}",
+                    options=q['options'], 
+                    key=f"q{idx}",
+                )
 
-        answer = st.radio("Select your answer", q['options'], key=idx)
+                if answer == q['options'][q['correct']]:
+                    score += 1
 
-        if answer == q['answer']:
-            score += 1
+            st.success(f"Your score is {score}/{len(questions)}")
 
-    st.success(f"Your score is {score}/{len(questions)}")
+            if st.button("Save Score to Database"):
+                save_score(student_name, score)
+                st.success("Your score has been successfully saved!")
 
-    if st.button("Save Score to Database"):
-        save_score(student_name, score)
-        st.success("Your score has been successfully saved!")
+            if st.button("View All Scores (Admin)"):
+                scores = view_scores()
+                st.table(scores)
 
-    if st.button("View All Scores (Admin)"):
-        scores = view_scores()
-        st.table(scores)
-
+        except Exception as e:
+            st.error(f"Error generating questions: {str(e)}")
 
 if __name__ == "__main__":
     main()
