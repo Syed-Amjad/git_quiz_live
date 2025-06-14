@@ -3,6 +3,7 @@ import streamlit as st
 import sqlite3
 import google.generativeai as genai
 import json
+import re
 
 # ------------------------------------------------------------------------------
 # Database setup
@@ -77,7 +78,16 @@ def main():
             )
 
             raw_json = response.text.strip()
+
             st.write("Questions generated! Please answer them below:")
+
+            # Extract array from raw_json
+            match = re.search(r'(\[.*\])', raw_json, re.MULTILINE | re.DOTALL)
+            if match:
+                raw_json = match.group(1)
+            else:
+                st.error("Unable to extract questions from Gemini response.")
+                return
 
             questions = json.loads(raw_json)
 
