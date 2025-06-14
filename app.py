@@ -21,14 +21,12 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 def save_score(student_name, score):
     conn = sqlite3.connect("quiz_data.db")
     c = conn.cursor()
     c.execute("INSERT INTO scores (student_name, score) VALUES (?, ?)", (student_name, score))
     conn.commit()
     conn.close()
-
 
 def view_scores():
     conn = sqlite3.connect("quiz_data.db")
@@ -37,7 +35,6 @@ def view_scores():
     rows = c.fetchall()
     conn.close()
     return rows
-
 
 # ------------------------------------------------------------------------------
 # Streamlit App
@@ -51,18 +48,26 @@ def main():
     # Initialize db
     init_db()
 
-    # Student enters their name first
-    student_name = st.text_input("Enter your name:")
+    # Initialize session state variables
+    if 'questions' not in st.session_state:
+        st.session_state.questions = None
+    if 'score' not in st.session_state:
+        st.session_state.score = 0
+    if 'answers_submitted' not in st.session_state:
+        st.session_state.answers_submitted = False
+    if 'student_name' not in st.session_state:
+        st.session_state.student_name = ""
 
-    if not student_name:
+    # Student enters their name first
+    st.session_state.student_name = st.text_input("Enter your name:", value=st.session_state.student_name)
+
+    if not st.session_state.student_name:
         st.error("Please enter your name to proceed.")
         return
 
-    st.write(f"Hello, {student_name}! Let's start the quiz.")
-    score = 0
+    st.write(f"Hello, {st.session_state.student_name}! Let's start the quiz.")
 
-    if st.button("Generate Quiz with Gemini Flash"):
-
+    if st.button("Generate Quiz with Gemini Flash") and not st.session_state.questions:
         try:
             # Configure Gemini
             genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -79,39 +84,49 @@ def main():
 
             raw_json = response.text.strip()
 
-            st.write("Questions generated! Please answer them below:")
-
             # Extract array from raw_json
             match = re.search(r'(\[.*\])', raw_json, re.MULTILINE | re.DOTALL)
             if match:
                 raw_json = match.group(1)
+                st.session_state.questions = json.loads(raw_json)
+                st.session_state.score = 0  # Reset score when generating new questions
+                st.session_state.answers_submitted = False
+                st.success("Questions generated! Please answer them below:")
             else:
                 st.error("Unable to extract questions from Gemini response.")
-                return
-
-            questions = json.loads(raw_json)
-
-            for idx, q in enumerate(questions, 1):
-                st.write(f"Question {idx}. {q['question']}")
-
-                answer = st.radio("Select your answer", q['options'], key=idx)
-
-                if answer == q['options'][q['correct']]:
-                    score += 1
-
-            st.success(f"Your score is {score}/{len(questions)}")
-
-            if st.button("Save Score to Database"):
-                save_score(student_name, score)
-                st.success("Your score has been successfully saved!")
 
         except Exception as e:
             st.error(f"Error generating questions: {e}")
 
+    if st.session_state.questions and not st.session_state.answers_submitted:
+        user_answers = []
+        
+        for idx, q in enumerate(st.session_state.questions, 1):
+            st.write(f"Question {idx}. {q['question']}")
+            user_answer = st.radio(
+                "Select your answer", 
+                q['options'], 
+                key=f"q_{idx}",
+                index=None  # No default selection
+            )
+            user_answers.append(user_answer)
+
+        if st.button("Submit Answers"):
+            st.session_state.score = 0
+            for idx, (q, user_answer) in enumerate(zip(st.session_state.questions, user_answers), 1):
+                if user_answer == q['options'][q['correct']]:
+                    st.session_state.score += 1
+            
+            st.session_state.answers_submitted = True
+            st.success(f"Your score is {st.session_state.score}/{len(st.session_state.questions)}")
+
+            if st.button("Save Score to Database"):
+                save_score(st.session_state.student_name, st.session_state.score)
+                st.success("Your score has been successfully saved!")
+
     if st.button("View All Scores (Admin)"):
         scores = view_scores()
         st.table(scores)
-
 
 if __name__ == "__main__":
     main()
