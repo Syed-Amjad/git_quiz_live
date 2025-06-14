@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import sqlite3
 import json
+import re
 import google.generativeai as genai
 
 # ------------------------------------------------------------------------------
@@ -91,8 +92,14 @@ Respond with a pure JSON array with this structure:
             st.write("Raw response from Gemini:")
             st.code(raw_response, language='json')
 
-            # Now parse the raw response safely
-            questions = json.loads(raw_response)
+            # Extract the pure JSON array from the raw response
+            match = re.search(r'(\[.*\])', raw_response, re.MULTILINE | re.DOTALL)
+            if match:
+                raw_json = match.group(1)
+            else:
+                raise ValueError("JSON array not found in Gemini response")
+
+            questions = json.loads(raw_json)
             st.success("Questions parsed successfully! Please answer them below:")
 
             score = 0
