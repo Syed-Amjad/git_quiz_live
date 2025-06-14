@@ -57,6 +57,8 @@ def main():
         st.session_state.answers_submitted = False
     if 'student_name' not in st.session_state:
         st.session_state.student_name = ""
+    if 'show_save_button' not in st.session_state:
+        st.session_state.show_save_button = False
 
     # Student enters their name first
     st.session_state.student_name = st.text_input("Enter your name:", value=st.session_state.student_name)
@@ -89,8 +91,9 @@ def main():
             if match:
                 raw_json = match.group(1)
                 st.session_state.questions = json.loads(raw_json)
-                st.session_state.score = 0  # Reset score when generating new questions
+                st.session_state.score = 0
                 st.session_state.answers_submitted = False
+                st.session_state.show_save_button = False
                 st.success("Questions generated! Please answer them below:")
             else:
                 st.error("Unable to extract questions from Gemini response.")
@@ -107,7 +110,7 @@ def main():
                 "Select your answer", 
                 q['options'], 
                 key=f"q_{idx}",
-                index=None  # No default selection
+                index=None
             )
             user_answers.append(user_answer)
 
@@ -118,11 +121,15 @@ def main():
                     st.session_state.score += 1
             
             st.session_state.answers_submitted = True
+            st.session_state.show_save_button = True
             st.success(f"Your score is {st.session_state.score}/{len(st.session_state.questions)}")
 
-            if st.button("Save Score to Database"):
-                save_score(st.session_state.student_name, st.session_state.score)
-                st.success("Your score has been successfully saved!")
+    # Show save button only after submission and only once
+    if st.session_state.show_save_button:
+        if st.button("Save Score to Database"):
+            save_score(st.session_state.student_name, st.session_state.score)
+            st.success("Your score has been successfully saved!")
+            st.session_state.show_save_button = False  # Hide after saving
 
     if st.button("View All Scores (Admin)"):
         scores = view_scores()
